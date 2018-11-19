@@ -1,5 +1,5 @@
 import pandas as pd 
-from feature_engineering_lgb_1_1 import data_process
+from feature_engineering_lgb_1_3 import data_process
 import time
 
 data = 'data/'
@@ -8,8 +8,8 @@ chunk_size = 20000000
 train_save = False
 test_save = True
 
-train_name = 'processed_train_1.1.csv'
-test_name = 'processed_test_1.1.csv'
+train_name = 'processed_train_1.3.csv'
+test_name = 'processed_test_1.3.csv'
 
 if train_save:
     start = time.time()
@@ -46,6 +46,6 @@ if test_save:
     end = time.time()
     print('Overall time taken to process test set: {:.0f} mins'.format((end-start)/60))
 
-    test = test_meta.merge(test, on='object_id')
+    # test = test_meta.merge(test, on='object_id')
     test.to_csv(output + test_name, index=False)
     print('Complete test set saved to disk. Shape: {}'.format(test.shape))

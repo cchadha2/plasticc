@@ -14,18 +14,12 @@ import pymongo
 # Initialise all inputs
 
 # Data
-training_dataset = 'processed_train_1.1.csv'
+training_dataset = 'processed_train_1.3.csv'
 train_df = pd.read_csv('output/' + training_dataset, index_col=False)
 
 le = LabelEncoder()
 train_df.target = le.fit_transform(train_df.target)
 print('Number of training classes: {}'.format(len(le.classes_.tolist())))
-
-# Dataframe for out-of-fold predictions
-oof_df = train_df[['object_id']].copy()
-for x in le.classes_.tolist():
-    oof_df['class_' + str(x)] = 0
-oof_df['class_99'] = 0
 
 # Feature importance dataframes
 fold_importance_df = pd.DataFrame()
@@ -40,18 +34,18 @@ importance_save = True
 
 # Model parameters
 params = {
-            'objective': 'multiclassova',
+            'objective': 'multiclass',
             'num_class': 14,
             'boosting_type': 'gbdt',
             'learning_rate': 0.02,  # 02,
             'num_leaves': 20,
-            'colsample_bytree': 0.9497036,
-            'subsample': 0.8715623,
+            'colsample_bytree': 0.95,
+            'subsample': 0.9,
             'subsample_freq': 1,
             'max_depth': 3,
-            'reg_alpha': 0.041545473,
-            'reg_lambda': 0.0735294,
-            'min_split_gain': 0.0222415,
+            'reg_alpha': 0.04,
+            'reg_lambda': 0.07,
+            'min_split_gain': 0.02,
             'min_child_weight': 60, #39.3259775
             'n_estimators': 1000,
             'seed': SEED,
@@ -66,7 +60,7 @@ mongo_dict['early_stopping_rounds'] = early_rounds
 mongo_dict['seed'] = SEED
 mongo_dict['num_folds'] = num_folds
 mongo_dict['stratified'] = stratified
-mongo_dict['notes'] = 'Removed hostgal_specz from training and weighted labels during training'
+mongo_dict['notes'] = 'Time-series feature extraction using tsfresh and additional smart feature'
 
 # Create y_true for scoring
 target_df = train_df[['object_id', 'target']]
@@ -179,10 +173,10 @@ with timer("Run LightGBM with kfold"):
     # Create arrays and dataframes to store results
     if params['num_class'] == 14:
         oof_preds = np.zeros((train_df.shape[0], len(le.classes_)))
-    else:
+    elif params['num_class'] == 15:
         oof_preds = np.zeros((train_df.shape[0], len(le.classes_) + 1))
-    feats = [f for f in train_df.columns if f not in ['target','object_id']]
 
+    feats = [f for f in train_df.columns if f not in ['target','object_id']]
     w = train_df['target'].value_counts()
     weights = {i : np.sum(w) / w[i] for i in w.index}
 
@@ -205,6 +199,7 @@ with timer("Run LightGBM with kfold"):
         )
         
         oof_preds[valid_idx] = clf.predict_proba(val_x, num_iteration=clf.best_iteration_)
+
 
     fold_importance_df["feature"] = feats
     fold_importance_df["importance"] = clf.feature_importances_

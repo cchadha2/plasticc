@@ -8,11 +8,11 @@ from sklearn.preprocessing import LabelEncoder
 import lightgbm as lgb
 
 # Initialise all inputs
-submission_file_name = 'preds/lgb_test_preds_1.1_multiclass.csv'
+submission_file_name = 'preds/lgb_test_preds_1.2.csv'
 
 # Data
-test_dataset = 'processed_test_1.1.csv'
-training_dataset = 'processed_train_1.1.csv'
+test_dataset = 'processed_test_1.2.csv'
+training_dataset = 'processed_train_1.2.csv'
 train_df = pd.read_csv('output/' + training_dataset, index_col=False)
 
 le = LabelEncoder()
@@ -141,10 +141,11 @@ with timer("Run LightGBM with kfold"):
         folds = KFold(n_splits= num_folds, shuffle=True, random_state=SEED)
 
     # Create arrays and dataframes to store results
-    if params['num_class'] == 14:
-        sub_preds = np.zeros((sub_df.shape[0], len(le.classes_)))
-    elif params['num_class'] == 15:
-        sub_preds = np.zeros((sub_df.shape[0], len(le.classes_) + 1))
+    # if params['num_class'] == 14:
+    #     sub_preds = np.zeros((sub_df.shape[0], len(le.classes_)))
+    # elif params['num_class'] == 15:
+    #     sub_preds = np.zeros((sub_df.shape[0], len(le.classes_) + 1))
+    sub_preds = np.zeros((sub_df.shape[0], len(le.classes_) + 1))
     feats = [f for f in train_df.columns if f not in ['target','object_id']]
 
     w = train_df['target'].value_counts()
@@ -170,17 +171,15 @@ with timer("Run LightGBM with kfold"):
         
         print("Predicting")
         test_dfs = pd.read_csv('output/' + test_dataset, chunksize=1000000, index_col=False)
-        sub_preds_list = [(clf.predict(test_df[feats])/folds.n_splits) for test_df in test_dfs]
+        sub_preds_list = [clf.predict_proba(test_df[feats])/folds.n_splits for test_df in test_dfs]
         preds_ = np.vstack(sub_preds_list)
 
-        preds_99 = np.ones(preds_.shape[0])
+        preds_99 = np.ones((preds_.shape[0],1))
         for i in range(preds_.shape[1]):
             preds_99 *= (1 - preds_[:, i])
-        
-        preds_ = np.concatenate((preds_, preds_99), axis=1)
 
+        preds_ = np.hstack((preds_, preds_99))
         sub_preds += preds_
-        print(sub_preds.shape)
     
     sub_df.iloc[:, 1:] = sub_preds
     del clf
