@@ -8,11 +8,11 @@ from sklearn.preprocessing import LabelEncoder
 import lightgbm as lgb
 
 # Initialise all inputs
-submission_file_name = 'preds/lgb_test_preds_1.2.csv'
+submission_file_name = 'preds/lgb_test_preds_1.3.csv'
 
 # Data
-test_dataset = 'processed_test_1.2.csv'
-training_dataset = 'processed_train_1.2.csv'
+test_dataset = 'processed_test_1.3.csv'
+training_dataset = 'processed_train_1.3.csv'
 train_df = pd.read_csv('output/' + training_dataset, index_col=False)
 
 le = LabelEncoder()
@@ -39,13 +39,13 @@ params = {
             'boosting_type': 'gbdt',
             'learning_rate': 0.02,  # 02,
             'num_leaves': 20,
-            'colsample_bytree': 0.9497036,
-            'subsample': 0.8715623,
+            'colsample_bytree': 0.95,
+            'subsample': 0.9,
             'subsample_freq': 1,
             'max_depth': 3,
-            'reg_alpha': 0.041545473,
-            'reg_lambda': 0.0735294,
-            'min_split_gain': 0.0222415,
+            'reg_alpha': 0.04,
+            'reg_lambda': 0.07,
+            'min_split_gain': 0.02,
             'min_child_weight': 60, #39.3259775
             'n_estimators': 1000,
             'seed': SEED,
@@ -141,10 +141,6 @@ with timer("Run LightGBM with kfold"):
         folds = KFold(n_splits= num_folds, shuffle=True, random_state=SEED)
 
     # Create arrays and dataframes to store results
-    # if params['num_class'] == 14:
-    #     sub_preds = np.zeros((sub_df.shape[0], len(le.classes_)))
-    # elif params['num_class'] == 15:
-    #     sub_preds = np.zeros((sub_df.shape[0], len(le.classes_) + 1))
     sub_preds = np.zeros((sub_df.shape[0], len(le.classes_) + 1))
     feats = [f for f in train_df.columns if f not in ['target','object_id']]
 
@@ -172,14 +168,13 @@ with timer("Run LightGBM with kfold"):
         print("Predicting")
         test_dfs = pd.read_csv('output/' + test_dataset, chunksize=1000000, index_col=False)
         sub_preds_list = [clf.predict_proba(test_df[feats])/folds.n_splits for test_df in test_dfs]
-        preds_ = np.vstack(sub_preds_list)
+        sub_preds += np.vstack(sub_preds_list)
 
-        preds_99 = np.ones((preds_.shape[0],1))
-        for i in range(preds_.shape[1]):
-            preds_99 *= (1 - preds_[:, i])
+    preds_99 = np.ones((sub_preds.shape[0],1))
+    for i in range(sub_preds.shape[1]):
+        preds_99[:,0] *= 1 - sub_preds[:, i]
 
-        preds_ = np.hstack((preds_, preds_99))
-        sub_preds += preds_
+    sub_preds = np.hstack((sub_preds, preds_99))
     
     sub_df.iloc[:, 1:] = sub_preds
     del clf

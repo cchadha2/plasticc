@@ -25,9 +25,6 @@ if test_save:
     start = time.time()
     chunk_iter = pd.read_csv(data + 'test_set.csv', iterator=True, chunksize=chunk_size, index_col=False)
     test_meta = pd.read_csv(data + 'test_set_metadata.csv', index_col=False)
-    # processed_test_1.1:
-    test_meta = test_meta.drop('hostgal_specz', axis=1)
-
     test = pd.DataFrame()
     for chunk in chunk_iter:
         chunk_start = time.time()
@@ -42,10 +39,8 @@ if test_save:
         print('________________')
     print('Chunk processing completed: {:.0f} mins'.format((chunk_end-start)/60))
     print('Number of duplicate object_ids after aggregation: {}'.format((test.groupby('object_id').size() > 1).sum()))
-    test = test.groupby('object_id').mean()
+    test = test.groupby('object_id', as_index=False).mean()
     end = time.time()
     print('Overall time taken to process test set: {:.0f} mins'.format((end-start)/60))
-
-    # test = test_meta.merge(test, on='object_id')
     test.to_csv(output + test_name, index=False)
     print('Complete test set saved to disk. Shape: {}'.format(test.shape))
