@@ -8,11 +8,11 @@ from sklearn.preprocessing import LabelEncoder
 import lightgbm as lgb
 
 # Initialise all inputs
-submission_file_name = 'preds/lgb_test_preds_1.3.csv'
+submission_file_name = 'preds/lgb_test_preds_1.4.csv'
 
 # Data
-test_dataset = 'processed_test_1.3.csv'
-training_dataset = 'processed_train_1.3.csv'
+test_dataset = 'processed_test_1.4.csv'
+training_dataset = 'processed_train_1.4.csv'
 train_df = pd.read_csv('output/' + training_dataset, index_col=False)
 
 le = LabelEncoder()
@@ -26,32 +26,46 @@ for x in le.classes_.tolist():
 sub_df['class_99'] = 0
 
 # Training parameters
-num_folds = 5
-stratified = True
+num_folds = 10
+stratified = False
 SEED = 1001
 early_rounds = 50
 importance_save = False
 
 # Model parameters
 params = {
-            'objective': 'multiclass',
-            'num_class': 14,
-            'boosting_type': 'gbdt',
-            'learning_rate': 0.02,  # 02,
-            'num_leaves': 20,
-            'colsample_bytree': 0.95,
-            'subsample': 0.9,
-            'subsample_freq': 1,
-            'max_depth': 3,
-            'reg_alpha': 0.04,
-            'reg_lambda': 0.07,
-            'min_split_gain': 0.02,
-            'min_child_weight': 60, #39.3259775
-            'n_estimators': 1000,
-            'seed': SEED,
-            'verbose': -1,
-            'metric': 'multi_logloss',
-        }
+        'device': 'cpu', 
+        'objective': 'multiclass', 
+        'num_class': 14, 
+        'boosting_type': 'gbdt', 
+        'n_jobs': -1, 
+        'max_depth': 6, 
+        'n_estimators': 1000, 
+        'subsample_freq': 2, 
+        'subsample_for_bin': 5000, 
+        'min_data_per_group': 100, 
+        'max_cat_to_onehot': 4, 
+        'cat_l2': 1.125, 
+        'cat_smooth': 100.0, 
+        'max_cat_threshold': 32, 
+        'metric_freq': 10, 
+        'verbosity': -1, 
+        'metric': 'multi_logloss', 
+        'xgboost_dart_mode': False, 
+        'uniform_drop': False, 
+        'colsample_bytree': 0.65, 
+        'drop_rate': 0.25, 
+        'learning_rate': 0.01, 
+        'max_drop': 25, 
+        'min_child_samples': 10, 
+        'min_child_weight': 100.0, 
+        'min_split_gain': 0.0008, 
+        'num_leaves': 11, 
+        'reg_alpha': 0.1, 
+        'reg_lambda': 1.0, 
+        'skip_drop': 0.75, 
+        'subsample': 0.6,
+        'seed': SEED}
 
 def multi_weighted_logloss(y_true, y_preds):
     """
@@ -141,7 +155,7 @@ with timer("Run LightGBM with kfold"):
         folds = KFold(n_splits= num_folds, shuffle=True, random_state=SEED)
 
     # Create arrays and dataframes to store results
-    sub_preds = np.zeros((sub_df.shape[0], len(le.classes_) + 1))
+    sub_preds = np.zeros((sub_df.shape[0], len(le.classes_)))
     feats = [f for f in train_df.columns if f not in ['target','object_id']]
 
     w = train_df['target'].value_counts()
@@ -173,7 +187,6 @@ with timer("Run LightGBM with kfold"):
     preds_99 = np.ones((sub_preds.shape[0],1))
     for i in range(sub_preds.shape[1]):
         preds_99[:,0] *= 1 - sub_preds[:, i]
-
     sub_preds = np.hstack((sub_preds, preds_99))
     
     sub_df.iloc[:, 1:] = sub_preds

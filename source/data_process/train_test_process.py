@@ -1,5 +1,5 @@
 import pandas as pd 
-from feature_engineering_lgb_1_3 import data_process
+from feature_engineering_lgb_1_4 import data_process
 import time
 
 data = 'data/'
@@ -8,8 +8,8 @@ chunk_size = 20000000
 train_save = False
 test_save = True
 
-train_name = 'processed_train_1.3.csv'
-test_name = 'processed_test_1.3.csv'
+train_name = 'processed_train_1.4.csv'
+test_name = 'processed_test_1.4.csv'
 
 if train_save:
     start = time.time()

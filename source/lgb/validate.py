@@ -14,7 +14,7 @@ import pymongo
 # Initialise all inputs
 
 # Data
-training_dataset = 'processed_train_1.3.csv'
+training_dataset = 'processed_train_1.4.csv'
 train_df = pd.read_csv('output/' + training_dataset, index_col=False)
 
 le = LabelEncoder()
@@ -34,24 +34,38 @@ importance_save = True
 
 # Model parameters
 params = {
-            'objective': 'multiclass',
-            'num_class': 14,
-            'boosting_type': 'gbdt',
-            'learning_rate': 0.02,  # 02,
-            'num_leaves': 20,
-            'colsample_bytree': 0.95,
-            'subsample': 0.9,
-            'subsample_freq': 1,
-            'max_depth': 3,
-            'reg_alpha': 0.04,
-            'reg_lambda': 0.07,
-            'min_split_gain': 0.02,
-            'min_child_weight': 60, #39.3259775
-            'n_estimators': 1000,
-            'seed': SEED,
-            'verbose': -1,
-            'metric': 'multi_logloss',
-        }
+        'device': 'cpu', 
+        'objective': 'multiclass', 
+        'num_class': 14, 
+        'boosting_type': 'gbdt', 
+        'n_jobs': -1, 
+        'max_depth': 6, 
+        'n_estimators': 1000, 
+        'subsample_freq': 2, 
+        'subsample_for_bin': 5000, 
+        'min_data_per_group': 100, 
+        'max_cat_to_onehot': 4, 
+        'cat_l2': 1.125, 
+        'cat_smooth': 100.0, 
+        'max_cat_threshold': 32, 
+        'metric_freq': 10, 
+        'verbosity': -1, 
+        'metric': 'multi_logloss', 
+        'xgboost_dart_mode': False, 
+        'uniform_drop': False, 
+        'colsample_bytree': 0.65, 
+        'drop_rate': 0.25, 
+        'learning_rate': 0.01, 
+        'max_drop': 25, 
+        'min_child_samples': 10, 
+        'min_child_weight': 100.0, 
+        'min_split_gain': 0.0008, 
+        'num_leaves': 11, 
+        'reg_alpha': 0.1, 
+        'reg_lambda': 1.0, 
+        'skip_drop': 0.75, 
+        'subsample': 0.6,
+        'seed': SEED}
 
 # Create dictionary to send to MongoDB alongside validation score
 mongo_dict = params
@@ -60,7 +74,7 @@ mongo_dict['early_stopping_rounds'] = early_rounds
 mongo_dict['seed'] = SEED
 mongo_dict['num_folds'] = num_folds
 mongo_dict['stratified'] = stratified
-mongo_dict['notes'] = 'Time-series feature extraction using tsfresh and additional smart feature'
+mongo_dict['notes'] = 'Removed hostgal_photoz_uncertainty feature'
 
 # Create y_true for scoring
 target_df = train_df[['object_id', 'target']]
