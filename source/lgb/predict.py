@@ -8,11 +8,11 @@ from sklearn.preprocessing import LabelEncoder
 import lightgbm as lgb
 
 # Initialise all inputs
-submission_file_name = 'preds/lgb_test_preds_1.4.csv'
+submission_file_name = 'preds/lgb_test_preds_1.5.csv'
 
 # Data
-test_dataset = 'processed_test_1.4.csv'
-training_dataset = 'processed_train_1.4.csv'
+test_dataset = 'processed_test_1.5.csv'
+training_dataset = 'processed_train_1.5.csv'
 train_df = pd.read_csv('output/' + training_dataset, index_col=False)
 
 le = LabelEncoder()
@@ -30,7 +30,7 @@ num_folds = 10
 stratified = False
 SEED = 1001
 early_rounds = 50
-importance_save = False
+importance_save = True
 
 # Model parameters
 params = {
@@ -39,32 +39,32 @@ params = {
         'num_class': 14, 
         'boosting_type': 'gbdt', 
         'n_jobs': -1, 
-        'max_depth': 6, 
-        'n_estimators': 1000, 
+        'max_depth': 7, 
+        'n_estimators': 500, 
         'subsample_freq': 2, 
         'subsample_for_bin': 5000, 
         'min_data_per_group': 100, 
         'max_cat_to_onehot': 4, 
-        'cat_l2': 1.125, 
-        'cat_smooth': 100.0, 
+        'cat_l2': 1.0, 
+        'cat_smooth': 59.5, 
         'max_cat_threshold': 32, 
         'metric_freq': 10, 
         'verbosity': -1, 
         'metric': 'multi_logloss', 
         'xgboost_dart_mode': False, 
         'uniform_drop': False, 
-        'colsample_bytree': 0.65, 
-        'drop_rate': 0.25, 
-        'learning_rate': 0.01, 
-        'max_drop': 25, 
+        'colsample_bytree': 0.5, 
+        'drop_rate': 0.173, 
+        'learning_rate': 0.0267, 
+        'max_drop': 5, 
         'min_child_samples': 10, 
         'min_child_weight': 100.0, 
-        'min_split_gain': 0.0008, 
-        'num_leaves': 11, 
+        'min_split_gain': 0.1, 
+        'num_leaves': 7, 
         'reg_alpha': 0.1, 
-        'reg_lambda': 1.0, 
-        'skip_drop': 0.75, 
-        'subsample': 0.6,
+        'reg_lambda': 0.00023, 
+        'skip_drop': 0.44, 
+        'subsample': 0.75,
         'seed': SEED}
 
 def multi_weighted_logloss(y_true, y_preds):
@@ -182,14 +182,20 @@ with timer("Run LightGBM with kfold"):
         print("Predicting")
         test_dfs = pd.read_csv('output/' + test_dataset, chunksize=1000000, index_col=False)
         sub_preds_list = [clf.predict_proba(test_df[feats])/folds.n_splits for test_df in test_dfs]
+
         sub_preds += np.vstack(sub_preds_list)
 
+    # preds_99 = np.ones((sub_preds.shape[0],1))
+    # for i in range(sub_preds.shape[1]):
+    #     preds_99[:,0] *= 1 - sub_preds[:, i]
+    # sub_preds = np.hstack((sub_preds, preds_99))
+
+    # Dampen prediction of class_99 with constant
     preds_99 = np.ones((sub_preds.shape[0],1))
-    for i in range(sub_preds.shape[1]):
-        preds_99[:,0] *= 1 - sub_preds[:, i]
+    preds_99 = 0.14*(1-np.max(sub_preds,axis=1).reshape(-1,1))
+    print(preds_99.shape)
     sub_preds = np.hstack((sub_preds, preds_99))
-    
-    sub_df.iloc[:, 1:] = sub_preds
     del clf
 
+    sub_df.iloc[:, 1:] = sub_preds
     sub_df.to_csv(submission_file_name, index= False)

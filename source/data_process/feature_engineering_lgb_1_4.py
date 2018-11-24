@@ -14,9 +14,9 @@ def data_process(df, test=False):
 
     # Aggregate time-series features
     aggregate = {
-    'flux': ['min', 'max', 'mean', 'var'],
-    'flux_err': ['min', 'max', 'mean', 'var', 'sum'],
-    'detected': ['mean', 'var'],
+    'flux': ['min', 'max', 'mean', 'var', 'median', 'skew', 'std'],
+    'flux_err': ['min', 'max', 'mean', 'var', 'median', 'skew', 'std'],
+    'detected': ['mean', 'var', 'count'],
     'flux_uncertainty': ['mean', 'var', 'min', 'max', 'sum'],
     'flux_diff': ['mean', 'var', 'min', 'max', 'sum'],
     'flux_diff_sq': ['mean', 'var', 'min', 'max', 'sum'],
@@ -61,14 +61,14 @@ def data_process(df, test=False):
 
     if not test:
         train_meta = pd.read_csv('data/training_set_metadata.csv', index_col=False)
-        train_meta = train_meta.drop(['hostgal_specz','ddf'], axis=1)
+        train_meta = train_meta.drop(['hostgal_specz','ddf','distmod','ra','decl','gal_l','gal_b'], axis=1)
         train_meta['hostgal_photoz_uncertainty'] = (100*train_meta['hostgal_photoz_err'])/abs(train_meta['hostgal_photoz'])
         train_meta['hostgal_photoz_ratio_sq'] = np.power(train_meta['hostgal_photoz'].values / train_meta['hostgal_photoz_err'].values, 2.0)
         train_meta['hostgal_photoz_by_hostgal_photoz_ratio_sq'] = train_meta['hostgal_photoz'].values * train_meta['hostgal_photoz_ratio_sq'].values
         df = train_meta.merge(agg_df, on='object_id')
     else:
         test_meta = pd.read_csv('data/test_set_metadata.csv', index_col=False)
-        test_meta = test_meta.drop(['hostgal_specz','ddf'], axis=1)
+        test_meta = test_meta.drop(['hostgal_specz','ddf','distmod','ra','decl','gal_l','gal_b'], axis=1)
         test_meta['hostgal_photoz_uncertainty'] = (100*test_meta['hostgal_photoz_err'])/abs(test_meta['hostgal_photoz'])
         test_meta['hostgal_photoz_ratio_sq'] = np.power(test_meta['hostgal_photoz'].values / test_meta['hostgal_photoz_err'].values, 2.0)
         test_meta['hostgal_photoz_by_hostgal_photoz_ratio_sq'] = test_meta['hostgal_photoz'].values * test_meta['hostgal_photoz_ratio_sq'].values

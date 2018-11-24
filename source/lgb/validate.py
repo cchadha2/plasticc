@@ -6,16 +6,31 @@ import seaborn as sns
 
 from contextlib import contextmanager
 from sklearn.model_selection import StratifiedKFold, KFold
-from sklearn.metrics import precision_recall_fscore_support
 from sklearn.preprocessing import LabelEncoder
 import lightgbm as lgb
 import pymongo
 
+from data_process.feature_engineering_lgb_1_6 import data_process
+
+data = 'data/'
+output = 'output/'
+chunk_size = 20000000
+train_save = True
+test_save = False
+
 # Initialise all inputs
 
 # Data
-training_dataset = 'processed_train_1.4.csv'
-train_df = pd.read_csv('output/' + training_dataset, index_col=False)
+train_name = 'processed_train_1.6.csv'
+
+start = time.time()
+train = pd.read_csv(data + 'training_set.csv', index_col=False)
+print('Processing train dataset. train shape: {}'.format(train.shape))
+train_df = data_process(train)
+print('Processed train. Train shape: {};'.format(train_df.shape))
+train_df.to_csv(output + train_name, index=False)
+end = time.time()
+print('Time taken to process train set: {:.2f}s'.format(end-start))
 
 le = LabelEncoder()
 train_df.target = le.fit_transform(train_df.target)
@@ -39,42 +54,42 @@ params = {
         'num_class': 14, 
         'boosting_type': 'gbdt', 
         'n_jobs': -1, 
-        'max_depth': 6, 
-        'n_estimators': 1000, 
+        'max_depth': 7, 
+        'n_estimators': 500, 
         'subsample_freq': 2, 
         'subsample_for_bin': 5000, 
         'min_data_per_group': 100, 
         'max_cat_to_onehot': 4, 
-        'cat_l2': 1.125, 
-        'cat_smooth': 100.0, 
+        'cat_l2': 1.0, 
+        'cat_smooth': 59.5, 
         'max_cat_threshold': 32, 
         'metric_freq': 10, 
         'verbosity': -1, 
         'metric': 'multi_logloss', 
         'xgboost_dart_mode': False, 
         'uniform_drop': False, 
-        'colsample_bytree': 0.65, 
-        'drop_rate': 0.25, 
-        'learning_rate': 0.01, 
-        'max_drop': 25, 
+        'colsample_bytree': 0.5, 
+        'drop_rate': 0.173, 
+        'learning_rate': 0.0267, 
+        'max_drop': 5, 
         'min_child_samples': 10, 
         'min_child_weight': 100.0, 
-        'min_split_gain': 0.0008, 
-        'num_leaves': 11, 
+        'min_split_gain': 0.1, 
+        'num_leaves': 7, 
         'reg_alpha': 0.1, 
-        'reg_lambda': 1.0, 
-        'skip_drop': 0.75, 
-        'subsample': 0.6,
+        'reg_lambda': 0.00023, 
+        'skip_drop': 0.44, 
+        'subsample': 0.75,
         'seed': SEED}
 
 # Create dictionary to send to MongoDB alongside validation score
 mongo_dict = params
-mongo_dict['training_dataset'] = training_dataset
+mongo_dict['training_dataset'] = train_name
 mongo_dict['early_stopping_rounds'] = early_rounds
 mongo_dict['seed'] = SEED
 mongo_dict['num_folds'] = num_folds
 mongo_dict['stratified'] = stratified
-mongo_dict['notes'] = 'Removed hostgal_photoz_uncertainty feature'
+mongo_dict['notes'] = 'Removing magnitude'
 
 # Create y_true for scoring
 target_df = train_df[['object_id', 'target']]
