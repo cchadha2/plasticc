@@ -1,12 +1,12 @@
 import pandas as pd 
-from feature_engineering_lgb_1_6 import data_process
+from feature_engineering_lgb_1_7 import data_process
 import time
 
 data = 'data/'
 output = 'output/'
 chunk_size = 20000000
 
-test_name = 'processed_test_1.6.csv'
+test_name = 'processed_test_1.7.csv'
 
 start = time.time()
 chunk_iter = pd.read_csv(data + 'test_set.csv', iterator=True, chunksize=chunk_size, index_col=False)

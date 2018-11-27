@@ -8,11 +8,11 @@ from sklearn.preprocessing import LabelEncoder
 import lightgbm as lgb
 
 # Initialise all inputs
-submission_file_name = 'preds/lgb_test_preds_1.5.csv'
+submission_file_name = 'preds/lgb_test_preds_1.6.csv'
 
 # Data
-test_dataset = 'processed_test_1.5.csv'
-training_dataset = 'processed_train_1.5.csv'
+test_dataset = 'processed_test_1.6.csv'
+training_dataset = 'processed_train_1.6.csv'
 train_df = pd.read_csv('output/' + training_dataset, index_col=False)
 
 le = LabelEncoder()

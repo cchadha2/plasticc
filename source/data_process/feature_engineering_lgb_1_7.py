@@ -6,7 +6,6 @@ from astropy.cosmology import FlatLambdaCDM
 
 def data_process(df, test=False):
     # Feature engineering
-    df['flux_err_perc'] = (100*df['flux_err'])/abs(df['flux'])
     df['flux_diff']=df['flux']-df['flux'].mean()
     df['flux_diff_sq']=(df['flux']-df['flux'].mean())**2
     df['flux_ratio_sq'] = np.power(df['flux'].values / df['flux_err'].values, 2.0)
@@ -16,16 +15,14 @@ def data_process(df, test=False):
 
     # Aggregate time-series features
     aggregate = {
-    'flux': ['min', 'max', 'mean', 'median', 'skew', 'std'],
     'flux_err': ['min', 'max', 'mean'],
     'detected': ['mean'],
-    'flux_err_perc': ['mean', 'min', 'max', 'sum', 'median', 'skew', 'std'],
     'flux_diff': ['mean', 'var', 'min', 'max', 'sum'],
     'flux_diff_sq': ['mean', 'var', 'min', 'max', 'sum'],
     'flux_ratio_sq':['sum','skew'],
     'flux_by_flux_ratio_sq':['sum','skew'],
-    'magnitude': ['min','max', 'var', 'median', 'skew', 'std'],
-    'flux_upper': ['median'],
+    'magnitude': ['min', 'max', 'median'],
+    'flux_upper': ['median']
     }
 
     # Aggregate dataset
@@ -35,8 +32,6 @@ def data_process(df, test=False):
     agg_df.columns = [ '{}_{}'.format(k, agg) for k in aggregate.keys() for agg in aggregate[k]]
 
     agg_df['flux_w_mean'] = agg_df['flux_by_flux_ratio_sq_sum'].values / agg_df['flux_ratio_sq_sum'].values
-    agg_df['flux_max_min'] = agg_df['flux_max'].values - agg_df['flux_min'].values
-    agg_df['flux_max_min_ave'] = agg_df['flux_max_min'].values / agg_df['flux_mean'].values
 
     fcp = {
         'flux': {
@@ -59,6 +54,11 @@ def data_process(df, test=False):
                 ],
             'kurtosis' : None, 
             'skewness' : None,
+            'minimum': None,
+            'maximum': None,
+            'median': None,
+            'standard_deviation': None,
+            'mean': None,
         },
                 
         'mjd': {
@@ -82,6 +82,7 @@ def data_process(df, test=False):
                                       column_value='flux', 
                                       default_fc_parameters=fcp['flux'], n_jobs=4)
 
+
     agg_df_ts_flux_by_flux_ratio_sq = extract_features(df, 
                                       column_id='object_id', 
                                       column_value='flux_by_flux_ratio_sq', 
@@ -102,7 +103,7 @@ def data_process(df, test=False):
     agg_df_ts = pd.concat([agg_df, 
                            agg_df_ts_flux_passband, 
                            agg_df_ts_flux, 
-                           agg_df_ts_flux_by_flux_ratio_sq, 
+                           agg_df_ts_flux_by_flux_ratio_sq,
                            agg_df_mjd], axis=1).reset_index()
 
     cosmo = FlatLambdaCDM(H0=70, Om0=0.3, Tcmb0=2.725)

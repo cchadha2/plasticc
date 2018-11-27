@@ -10,18 +10,12 @@ from sklearn.preprocessing import LabelEncoder
 import lightgbm as lgb
 import pymongo
 
-from data_process.feature_engineering_lgb_1_6 import data_process
-
-data = 'data/'
-output = 'output/'
-chunk_size = 20000000
-train_save = True
-test_save = False
-
-# Initialise all inputs
+from data_process.feature_engineering_lgb_1_7 import data_process
 
 # Data
-train_name = 'processed_train_1.6.csv'
+data = 'data/'
+output = 'output/'
+train_name = 'processed_train_1.7.csv'
 
 start = time.time()
 train = pd.read_csv(data + 'training_set.csv', index_col=False)
@@ -89,7 +83,7 @@ mongo_dict['early_stopping_rounds'] = early_rounds
 mongo_dict['seed'] = SEED
 mongo_dict['num_folds'] = num_folds
 mongo_dict['stratified'] = stratified
-mongo_dict['notes'] = 'Removing magnitude'
+mongo_dict['notes'] = 'Re-running best score'
 
 # Create y_true for scoring
 target_df = train_df[['object_id', 'target']]
