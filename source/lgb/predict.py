@@ -5,14 +5,15 @@ import time
 from contextlib import contextmanager
 from sklearn.model_selection import StratifiedKFold, KFold
 from sklearn.preprocessing import LabelEncoder
+from imblearn.over_sampling import SMOTE
 import lightgbm as lgb
 
 # Initialise all inputs
-submission_file_name = 'preds/lgb_test_preds_1.6.csv'
+submission_file_name = 'preds/lgb_test_preds_1.8.csv'
 
 # Data
-test_dataset = 'processed_test_1.6.csv'
-training_dataset = 'processed_train_1.6.csv'
+test_dataset = 'processed_test_1.8.csv'
+training_dataset = 'processed_train_1.8.csv'
 train_df = pd.read_csv('output/' + training_dataset, index_col=False)
 
 le = LabelEncoder()
@@ -146,6 +147,14 @@ def timer(title):
     yield
     print("{} - done in {:.0f} mins".format(title, (time.time() - t0)/60))
 
+def smoteAdataset(Xig_train, yig_train, Xig_test, yig_test):
+    
+        
+    sm=SMOTE(random_state=2)
+    Xig_train_res, yig_train_res = sm.fit_sample(Xig_train, yig_train.ravel())
+
+        
+    return Xig_train_res, pd.Series(yig_train_res), Xig_test, pd.Series(yig_test)
 
 with timer("Run LightGBM with kfold"):
     # Cross validation model
@@ -161,10 +170,18 @@ with timer("Run LightGBM with kfold"):
     w = train_df['target'].value_counts()
     weights = {i : np.sum(w) / w[i] for i in w.index}
 
+    for cindex in train_df.columns:
+        train_df.loc[:,cindex]=np.float64(train_df.loc[:,cindex])
+
     for n_fold, (train_idx, valid_idx) in enumerate(folds.split(train_df[feats], train_df['target'])):
         train_x, train_y = train_df[feats].iloc[train_idx], train_df['target'].iloc[train_idx]
         val_x, val_y = train_df[feats].iloc[valid_idx], train_df['target'].iloc[valid_idx]
 
+        trn_xa, train_y, val_xa, val_y=smoteAdataset(train_x.values, train_y.values, val_x.values, val_y.values)
+        train_x=pd.DataFrame(data=trn_xa, columns=train_x.columns)
+        val_x=pd.DataFrame(data=val_xa, columns=val_x.columns)
+
+        print("{}/{} folds".format(n_fold+1, num_folds))
         print("Starting training. Train shape: {}".format(train_df.shape))
 
         clf = lgb.LGBMClassifier(**params)
@@ -180,6 +197,7 @@ with timer("Run LightGBM with kfold"):
         )
         
         print("Predicting")
+        print("__________")
         test_dfs = pd.read_csv('output/' + test_dataset, chunksize=1000000, index_col=False)
         sub_preds_list = [clf.predict_proba(test_df[feats])/folds.n_splits for test_df in test_dfs]
 
@@ -193,9 +211,9 @@ with timer("Run LightGBM with kfold"):
     # Dampen prediction of class_99 with constant
     preds_99 = np.ones((sub_preds.shape[0],1))
     preds_99 = 0.14*(1-np.max(sub_preds,axis=1).reshape(-1,1))
-    print(preds_99.shape)
     sub_preds = np.hstack((sub_preds, preds_99))
     del clf
 
     sub_df.iloc[:, 1:] = sub_preds
     sub_df.to_csv(submission_file_name, index= False)
+    print('Completed predicting and saved submission CSV {}'.format(sub_df.shape))

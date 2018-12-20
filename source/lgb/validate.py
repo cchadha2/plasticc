@@ -3,19 +3,23 @@ import numpy as np
 import time
 import matplotlib.pyplot as plt
 import seaborn as sns
+import gc
+import itertools
 
 from contextlib import contextmanager
 from sklearn.model_selection import StratifiedKFold, KFold
 from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import confusion_matrix
+from imblearn.over_sampling import SMOTE
 import lightgbm as lgb
 import pymongo
 
-from data_process.feature_engineering_lgb_1_7 import data_process
+from data_process.feature_engineering_lgb_tsfresh import data_process
 
 # Data
 data = 'data/'
 output = 'output/'
-train_name = 'processed_train_1.7.csv'
+train_name = 'processed_train_tsfresh.csv'
 
 start = time.time()
 train = pd.read_csv(data + 'training_set.csv', index_col=False)
@@ -25,6 +29,7 @@ print('Processed train. Train shape: {};'.format(train_df.shape))
 train_df.to_csv(output + train_name, index=False)
 end = time.time()
 print('Time taken to process train set: {:.2f}s'.format(end-start))
+print(train_df.head())
 
 le = LabelEncoder()
 train_df.target = le.fit_transform(train_df.target)
@@ -40,6 +45,9 @@ stratified = True
 SEED = 1001
 early_rounds = 50
 importance_save = True
+display_conf = True
+display_imp = True
+mongo_save = True
 
 # Model parameters
 params = {
@@ -83,7 +91,7 @@ mongo_dict['early_stopping_rounds'] = early_rounds
 mongo_dict['seed'] = SEED
 mongo_dict['num_folds'] = num_folds
 mongo_dict['stratified'] = stratified
-mongo_dict['notes'] = 'Re-running best score'
+mongo_dict['notes'] = 'Trying all tsfresh features'
 
 # Create y_true for scoring
 target_df = train_df[['object_id', 'target']]
@@ -180,11 +188,55 @@ def timer(title):
 def display_importances(feature_importance_df_):
     cols = feature_importance_df_[["feature", "importance"]].groupby("feature").mean().sort_values(by="importance", ascending=False)[:40].index
     best_features = feature_importance_df_.loc[feature_importance_df_.feature.isin(cols)]
-    plt.figure(figsize=(12, 10))
+    plt.figure(0, figsize=(12, 10))
     sns.barplot(x="importance", y="feature", data=best_features.sort_values(by="importance", ascending=False))
     plt.title('LightGBM Features (avg over folds)')
     plt.tight_layout()
-    plt.savefig('output/lgbm_importances.png')
+    # plt.show()
+    plt.savefig('output/lgb_importances.png')
+
+def plot_confusion_matrix(cm, classes,
+                          normalize=False,
+                          title='Confusion matrix',
+                          cmap=plt.cm.Blues):
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
+
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar()
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=45)
+    plt.yticks(tick_marks, classes)
+
+    fmt = '.2f' if normalize else 'd'
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, format(cm[i, j], fmt),
+                 horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
+
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.tight_layout()
+    # plt.show()
+    plt.savefig('output/lgb_confusion.png')
+
+def smoteAdataset(Xig_train, yig_train, Xig_test, yig_test):
+    
+        
+    sm=SMOTE(random_state=SEED)
+    Xig_train_res, yig_train_res = sm.fit_sample(Xig_train, yig_train.ravel())
+
+        
+    return Xig_train_res, pd.Series(yig_train_res), Xig_test, pd.Series(yig_test)
 
 with timer("Run LightGBM with kfold"):
     # Cross validation model
@@ -203,10 +255,18 @@ with timer("Run LightGBM with kfold"):
     w = train_df['target'].value_counts()
     weights = {i : np.sum(w) / w[i] for i in w.index}
 
+    for cindex in train_df.columns:
+        train_df.loc[:,cindex]=np.float64(train_df.loc[:,cindex])
+
     for n_fold, (train_idx, valid_idx) in enumerate(folds.split(train_df[feats], train_df['target'])):
         train_x, train_y = train_df[feats].iloc[train_idx], train_df['target'].iloc[train_idx]
         val_x, val_y = train_df[feats].iloc[valid_idx], train_df['target'].iloc[valid_idx]
 
+        trn_xa, train_y, val_xa, val_y=smoteAdataset(train_x.values, train_y.values, val_x.values, val_y.values)
+        train_x=pd.DataFrame(data=trn_xa, columns=train_x.columns)
+        val_x=pd.DataFrame(data=val_xa, columns=val_x.columns)
+
+        print("{}/{} folds".format(n_fold+1, num_folds))
         print("Starting training. Train shape: {}".format(train_df.shape))
 
         clf = lgb.LGBMClassifier(**params)
@@ -232,13 +292,39 @@ with timer("Run LightGBM with kfold"):
 
     score = multi_weighted_logloss(y_true, oof_preds)
     print('Log-loss on oof preds: {}'.format(score))
+    print("__________")
 
     mongo_dict['score'] = score
-    collection.insert_one(mongo_dict)
 
-    display_importances(feature_importance_df)
+    if mongo_save == True:
+        collection.insert_one(mongo_dict)
+
+    if display_imp == True:
+        display_importances(feature_importance_df)
 
     # Save feature importance df as csv
     if importance_save == True:
         feature_importance_df = feature_importance_df.groupby('feature').agg('mean').drop('fold', axis = 1).sort_values('importance')
         feature_importance_df.to_csv('output/importance.csv')
+
+if display_conf == True:
+    unique_y = np.unique(train_df['target'])
+    class_map = dict()
+    for i,val in enumerate(unique_y):
+        class_map[val] = i
+            
+    y_map = np.zeros((train_df['target'].shape[0],))
+    y_map = np.array([class_map[val] for val in train_df['target']])
+
+    # Compute confusion matrix
+    cnf_matrix = confusion_matrix(y_map, np.argmax(oof_preds,axis=-1))
+    np.set_printoptions(precision=2)
+
+    sample_sub = pd.read_csv('data/sample_submission.csv')
+    class_names = list(sample_sub.columns[1:-1])
+    del sample_sub;gc.collect()
+
+    # Plot non-normalized confusion matrix
+    plt.figure(1, figsize=(10,10))
+    foo = plot_confusion_matrix(cnf_matrix, classes=class_names,normalize=True,
+                        title='Confusion matrix')
